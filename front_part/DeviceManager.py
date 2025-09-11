@@ -14,23 +14,39 @@ class DeviceManager:
         self.running = True
 
     def run(self):
+        # Check que l'accelerateur et le frein fonctionnent correctement
+        all_ok = all(controller.self_check() for controller in self.controllers)
+        if not all_ok :
+            self._print("Sensor check failed. Aborting")
+            return
+
+	# Envoie à l'OBU que l'initialisation est réussit (envoie de la commande break readu
+        self._print(" All sensors OK. Sending READY to OBU...")
+        for controller in self.controllers:
+            controller.send_ready()
+
+        # Attend le start de l'OBU
         self._print("Waiting for 'start' command from CAN...")
-        try:
-            while self.running:
+        started = False
+        while not started :
+            for controller in self.controllers:
+                if controller.wait_for_start():
+                    self._print("Start received. Initializing...")
+                    started = True
+                    break
+            time.sleep(0.1)
+
+        # Boucle principale
+        self._print("Main loop started.")
+        try :
+            while self.running :
                 for controller in self.controllers:
-                    if controller.wait_for_start():
-                        self._print("Start received. Initializing...")
-                        self.initialize_all()
-                        self.main_loop()
-                        return
-                time.sleep(0.1)
+                    controller.update()
+                time.sleep(0.05)
         except KeyboardInterrupt:
             self._print("Interrupted by user. Exiting...")
+        finally:
             self.stop_all()
-
-    def initialize_all(self):
-        for controller in self.controllers:
-            controller.initialize()
 
     def main_loop(self):
         self._print("Main loop started.")
@@ -44,15 +60,14 @@ class DeviceManager:
             self.stop_all()
 
     def stop_all(self):
-        self.running = False
         for controller in self.controllers:
             controller.stop()
         self._print("All resources cleaned up.")
-    
+
     def __del__(self):
         self._print("Destructor called, cleaning up ...")
         self.stop_all()
-    
+
     def _print(self, *args, **kwargs):
         if self.verbose:
             print("[DeviceManager]", *args, **kwargs)

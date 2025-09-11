@@ -1,3 +1,4 @@
 Adafruit-GPIO
 Adafruit-MCP3008
 python-can
+RPi.GPIO

@@ -15,6 +15,7 @@ steer_enable = 11
 
 brake_rdy = 20
 steer_rdy = 21
+ready_ack = 22
 
 prop_override = 30
 driving_mode = 31
