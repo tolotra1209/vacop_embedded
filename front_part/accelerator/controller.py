@@ -14,7 +14,7 @@ from ..CANAdapter import CANAdapter
       4) c.update() en boucle  -> lit capteur et envoie périodiquement 'accel_pedal'
       5) c.stop()              -> arrêt propre
 """
-READY_TIMEOUT = 3.0          # secondes max avant abandon
+READY_TIMEOUT = 5.0          # secondes max avant abandon
 READY_RETRY_INTERVAL = 0.5   # secondes entre deux essais
 
 class AcceleratorController(AbstractController):
