@@ -1,11 +1,18 @@
 import Adafruit_MCP3008
+import Adafruit_GPIO.GPIO as AGPIO
+import RPi.GPIO as RPI
 from AbstractClasses import AbstractSensor
 
 class AcceleratorSensor(AbstractSensor):
     def __init__(self, channel=0, clk=21, cs=7, miso=19, mosi=20, verbose=False):
         self.verbose = verbose
         self.channel = channel
-        self.mcp = Adafruit_MCP3008.MCP3008(clk=clk, cs=cs, miso=miso, mosi=mosi)
+        
+        # Numérotation BCM pour les pin 21/20/19/7
+        RPI.setmode(RPI.BCM)
+        gpio = AGPIO.RPiGPIOAdapter(RPI)
+        #Bit-bang sur les GPIO
+        self.mcp = Adafruit_MCP3008.MCP3008(clk=clk, cs=cs, miso=miso, mosi=mosi, gpio=gpio)
         self.lastAccelPedal = None
 
     def read(self):
