@@ -4,6 +4,8 @@ import argparse
 import time
 
 
+TIMEOUT = 30 #Solo connexion timout = 30sec
+
 class MotorController:
     def __init__(self, node, stoPin, verbose = False):
         if not isinstance(node, int):
@@ -23,27 +25,35 @@ class MotorController:
                 self.stop_motor()
         except Exception as e:
             print(f"Erreur dans __del__ : {e}")
-    
+
     def _print(self, *args, **kwargs):
         if self.verbose:
             print("[",self.node,"]",*args, **kwargs)
 
     def _initialize_STO(self):
-        self._print("Init STO  with ",self.stoPin)
+        GPIO.setwarnings(False)
+        self._print("[MOTOR] Init STO  with ",self.stoPin)
         GPIO.setmode(GPIO.BCM)
         GPIO.setup(self.stoPin, GPIO.OUT)
         GPIO.output(self.stoPin, GPIO.HIGH)
 
     def _initialize_motor(self):
         self.mySolo = solo.SoloMotorControllersCanopen(self.node, solo.CanBusBaudRate.RATE_1000)
-        self._print("Trying to Connect To SOLO")
-        while True:
-            time.sleep(1)
+        self._print("[MOTOR] Trying to Connect To SOLO")
+        deadline = time.time() + TIMEOUT
+        while time.time() < deadline :
+            time.sleep(0.5)
             connected, er = self.mySolo.communication_is_working()
-            self._print(f"[{self.node}]Motor Speed [RPM]: {connected} | Error: {er}")
+            #self._print(f"[{self.node}]Motor Speed [RPM]: {connected} | Error: {er}")
             if connected:
                 break
-        self._print("Communication Established successfully!")
+        if connected :
+            self._print("[MOTOR] Communication Established successfully!")
+            self.connected = True
+
+        else :
+            self._print("[MOTOR] SOLO not reachable after timeout")
+            self.connected = False
 
     def configure(self):
         self.mySolo.set_command_mode(solo.CommandMode.DIGITAL)
@@ -65,10 +75,8 @@ class MotorController:
         self._stop_STO()
 
     def _stop_STO(self):
-        self._print("putting sto to low")
         GPIO.output(self.stoPin, GPIO.LOW)
-        self._print("output LOW")
-        self._print("[STO] signal set to LOW: Safe Torque Off activated")
+        self._print("[STO] Set to LOW: Safe Torque Off")
     
     def _stop_torque(self):
         self.mySolo.set_torque_reference_iq(0.0)

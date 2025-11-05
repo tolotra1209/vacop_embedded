@@ -86,7 +86,7 @@ class CANReceiver(can.Listener):
         elif order in medium_priority:
             return 1 
         else:
-            return 2  # Default priority
+            return 2  # Default CANSystem_ppriority
 
     def on_message_received(self, msg):
         priority = self.get_priority(msg)

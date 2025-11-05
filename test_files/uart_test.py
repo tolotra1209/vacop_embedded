@@ -1,0 +1,80 @@
+import SoloPy as solo
+
+import time
+
+# For this Test, make sure you have calibrated your Motor and Hall sensors before
+# to know more please read: https:#www.solomotorcontrollers.com/hall-sensors-to-solo-for-controlling-speed-torque-brushless-motor/
+
+# instanciate a SOLO object:
+mySolo = solo.SoloMotorControllerUart("/dev/ttyS0", 1, solo.UartBaudRate.RATE_937500)
+
+# Desired Switching or PWM Frequency at Output
+pwmFrequency = 20
+
+# Motor's Number of Poles
+numberOfPoles = 8
+
+# Current Limit of the Motor
+currentLimit = 10.0
+
+# Battery or Bus Voltage
+busVoltage = 0
+
+# Motor Torque feedback
+actualMotorTorque = 0
+
+# Motor speed feedback
+actualMotorSpeed = 0
+
+# Motor position feedback
+actualMotorPosition = 0
+
+# wait here till communication is established
+print("Trying to Connect To SOLO")
+communication_is_working = False
+while communication_is_working is False:
+    time.sleep(1)
+    communication_is_working, error = mySolo.communication_is_working()
+print("Communication Established succuessfully!")
+
+# Initial Configuration of the device and the Motor
+
+mySolo.set_command_mode(solo.CommandMode.DIGITAL)
+mySolo.set_motor_type(solo.MotorType.BLDC_PMSM)
+mySolo.set_feedback_control_mode(solo.FeedbackControlMode.HALL_SENSORS)
+mySolo.set_control_mode(solo.ControlMode.TORQUE_MODE)
+
+# run the motor identification to Auto-tune the current controller gains Kp and Ki needed for Torque Loop
+# run ID. always after selecting the Motor Type!
+# ID. doesn't need to be called everytime, only one time after wiring up the Motor will be enough
+# the ID. values will be remembered by SOLO after power recycling
+mySolo.motor_parameters_identification(solo.Action.START)
+print("Identifying the Motor")
+# wait at least for 2sec till ID. is done
+time.sleep(2)
+
+# loop actions
+while True:
+    # set the Direction on C.W.
+    mySolo.set_motor_direction(solo.Direction.CLOCKWISE)
+    # set an arbitrary Positive speed reference[RPM]
+    mySolo.set_torque_reference_iq(1.2)
+    # wait till motor reaches to the reference
+    time.sleep(1)
+    actualMotorTorque, error = mySolo.get_quadrature_current_iq_feedback()
+    print("Measured Iq/Torque [A]: " + str(actualMotorTorque))
+    actualMotorSpeed, error = mySolo.get_speed_feedback()
+    print("Motor Speed [RPM]: " + str(actualMotorSpeed))
+    time.sleep(3)
+
+    # set the Direction on C.C.W.
+    mySolo.set_motor_direction(solo.Direction.COUNTERCLOCKWISE)
+    # set an arbitrary Positive speed reference[RPM]
+    mySolo.set_torque_reference_iq(0.8)
+    # wait till motor reaches to the reference
+    time.sleep(1)
+    actualMotorTorque, error = mySolo.get_quadrature_current_iq_feedback()
+    print("Measured Iq/Torque [A]: " + str(actualMotorTorque))
+    actualMotorSpeed, error = mySolo.get_speed_feedback()
+    print("Motor Speed [RPM]: " + str(actualMotorSpeed))
+    time.sleep(3)
