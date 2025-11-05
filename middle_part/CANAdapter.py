@@ -2,36 +2,64 @@
 from CAN_system.CANSystem_p import CANSystem
 
 class CANAdapter:
-    """Wrapper simplifié autour de CANSystem pour middle_part (STEER + boutons)."""
+    """
+    Petit wrapper autour CANSystem pour la middle_part :
+    - centralise le CAN
+    - diffuse les messages reçus à une liste de handlers Python
+    """
 
     def __init__(self, device_name="STEER", verbose=False):
-        self.verbose = verbose
         self.device_name = device_name
-        self.can_system = CANSystem(device_name=device_name, verbose=verbose)
-        self.listener = self.can_system  # compatibilité avec .listener.can_input()
+        self.verbose = verbose
 
+        self._handlers = []  # liste de callbacks (device, order, data)
+
+        # CANSystem "brut"
+        self._can = CANSystem(device_name=device_name, verbose=verbose)
+        # on branche notre propre dispatcher
+        self._can.set_callback(self._on_can_message)
+        self._can.start_listening()
+
+    # ---------- utils ----------
     def _print(self, *args):
         if self.verbose:
             print("[CANAdapter]", *args)
 
-    def can_send(self, target: str, order_id: str, data):
-        """Envoie un message CAN à une autre unité."""
-        try:
-            self._print(f"Sending to {target}: order='{order_id}', data={data}")
-            self.can_system.can_send(target, order_id, data)
-        except Exception as e:
-            self._print(f"[ERR] can_send failed: {e}")
+    # ---------- réception ----------
+    def _on_can_message(self, device_id, order_id, data):
+        """
+        Callback donné à CANSystem. On redispatche vers tous
+        les handlers enregistrés via add_handler().
+        """
+        # debug optionnel :
+        # self._print("RX:", device_id, order_id, data)
 
-    def set_callback(self, callback):
-        """Définit une fonction callback pour les messages entrants."""
-        self.can_system.set_callback(callback)
+        for cb in list(self._handlers):
+            try:
+                cb(device_id, order_id, data)
+            except Exception as e:
+                self._print("handler error:", e)
 
-    def start_listening(self):
-        """Démarre l'écoute du bus CAN."""
-        self._print("Starting CAN listener thread…")
-        self.can_system.start_listening()
+    def add_handler(self, callback):
+        """c
+        Enregistre un handler appelé comme cb(device, order, data)
+        à chaque trame CAN reçue.
+        """
+        if callback not in self._handlers:
+            self._handlers.append(callback)
 
+    # ---------- émission ----------
+    def can_send(self, device_id, order_id, data=None):
+        """
+        Envoie une trame CAN vers device_id avec l'order_id et data.
+        """
+        # debug optionnel :
+        # self._print("TX ->", device_id, order_id, data)
+        self._can.can_send(device_id, order_id, data)
+
+    # ---------- stop ----------
     def stop(self):
-        """Arrête proprement le CAN bus."""
-        self._print("Stopping CAN listener…")
-        self.can_system.stop()
+        try:
+            self._can.stop()
+        except Exception as e:
+            self._print("Error on stop():", e)

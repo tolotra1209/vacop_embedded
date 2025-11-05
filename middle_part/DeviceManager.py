@@ -22,40 +22,53 @@ class DeviceManager:
     def run(self):
         self._print("=== MIDDLE PART START ===")
 
-        # 1️⃣ Étape d'initialisation
+        # 1) INITIALIZE
         self._print("Initializing all controllers…")
         for c in self.controllers:
             try:
-                c.initialize()
+                if hasattr(c, "initialize"):
+                    c.initialize()
             except Exception as e:
                 self._print(f"[WARN] init failed for {c.__class__.__name__}: {e}")
 
-        # 2️⃣ Auto-check matériel
-        all_ok = all(c.self_check() for c in self.controllers)
+        # 2) SELF-CHECK
+        all_ok = True
+        for c in self.controllers:
+            if hasattr(c, "self_check"):
+                try:
+                    if not c.self_check():
+                        self._print(f"[ERR] self_check FAILED for {c.__class__.__name__}")
+                        all_ok = False
+                except Exception as e:
+                    self._print(f"[ERR] self_check exception for {c.__class__.__name__}: {e}")
+                    all_ok = False
+
         if not all_ok:
             self._print("[ERR] Some controllers failed self_check. Abort.")
             self.stop_all()
             return
 
-        # 3️⃣ Phase READY : seuls ceux qui ont besoin (steer par ex.) envoient leur signal
+        # 3) READY PHASE — SteerController envoie steer_rdy ici
+        self._print("Sending READY signals…")
         for c in self.controllers:
             if hasattr(c, "send_ready"):
                 try:
                     c.send_ready()
-                except Exception:
-                    pass
+                except Exception as e:
+                    self._print(f"[WARN] send_ready() failed for {c.__class__.__name__}: {e}")
 
-        # 4️⃣ Attente du START de l’OBU
+        # 4) WAIT FOR START
         self._print("Waiting for 'start' from OBU…")
         started = False
         while not started and self.running:
             for c in self.controllers:
-                try:
-                    if c.wait_for_start():
-                        started = True
-                        break
-                except Exception as e:
-                    self._print(f"[WARN] wait_for_start() failed: {e}")
+                if hasattr(c, "wait_for_start"):
+                    try:
+                        if c.wait_for_start():
+                            started = True
+                            break
+                    except Exception as e:
+                        self._print(f"[WARN] wait_for_start() failed: {e}")
             time.sleep(0.05)
 
         if not started:
@@ -63,15 +76,16 @@ class DeviceManager:
             self.stop_all()
             return
 
-        # 5️⃣ Boucle principale
+        # 5) MAIN LOOP
         self._print("Main loop started.")
         try:
             while self.running:
                 for c in self.controllers:
-                    try:
-                        c.update()
-                    except Exception as e:
-                        self._print(f"[WARN] update failed: {e}")
+                    if hasattr(c, "update"):
+                        try:
+                            c.update()
+                        except Exception as e:
+                            self._print(f"[WARN] update failed: {e}")
                 time.sleep(0.01)
         except KeyboardInterrupt:
             self._print("Interrupted by user.")
@@ -102,13 +116,12 @@ if __name__ == "__main__":
     transport = CANAdapter(device_name="STEER", verbose=args.verbose)
 
     # Création des contrôleurs
-    #steer = SteerController(transport, verbose=args.verbose)
+    steer = SteerController(transport, verbose=args.verbose)
     buttons = [
         ButtonController("bouton_park", 22, transport, verbose=args.verbose),
         ButtonController("bouton_auto_manu", 23, transport, verbose=args.verbose),
         ButtonController("bouton_on_off", 24, transport, verbose=args.verbose),
-        # ButtonController("bouton_reverse", <pin>, transport, verbose=args.verbose),
     ]
 
-    manager = DeviceManager([*buttons], verbose=args.verbose)
+    manager = DeviceManager([*buttons, steer], verbose=args.verbose)
     manager.run()
