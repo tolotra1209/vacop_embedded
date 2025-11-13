@@ -1,4 +1,4 @@
-from CAN_system.CANSystem import CANSystem
+from CAN_system.CANSystem_p import CANSystem
 
 class CANAdapter:
     def __init__(self, channel='can0', interface='socketcan', device_name='BRAKE', verbose=False):

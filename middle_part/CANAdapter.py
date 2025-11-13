@@ -1,5 +1,5 @@
 # middle_part/CANAdapter.py
-from CAN_system.CANSystem import CANSystem
+from CAN_system.CANSystem_p import CANSystem
 
 class CANAdapter:
     """Wrapper simplifié autour de CANSystem pour middle_part (STEER + boutons)."""

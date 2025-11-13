@@ -20,11 +20,8 @@ class MotorController:
         self._initialize_motor()
     
     def __del__(self):
-        try:
-            if hasattr(self, 'mySolo') and self.mySolo:
-                self.stop_motor()
-        except Exception as e:
-            print(f"Erreur dans __del__ : {e}")
+        if self.verbose:
+            print(f"[{self.node}] MotorController object garbage-collected.")
 
     def _print(self, *args, **kwargs):
         if self.verbose:
@@ -92,8 +89,11 @@ class MotorController:
         print(f"[{self.node}]Motor Speed [RPM]: {speed} | Error: {error}")
 
     def display_direction(self):
-        direction, error = self.mySolo.get_motor_direction()
-        print(f"[{self.node}]Set direction: {direction} | Error: {error}")
+        try:
+            direction, error = self.mySolo.get_motor_direction()
+            print(f"[{self.node}]Set direction: {direction} | Error: {error}")
+        except Exception as e :
+            print(f"[{self.node}]WARN: get_motor_direction failed: {e}")
 
     def set_direction(self, direction_str):
         directions = {
@@ -104,7 +104,11 @@ class MotorController:
         if direction_str not in directions:
             raise ValueError(f"[{self.node}]ERROR: '{direction_str}' is not valid (CW, CCW)")
         self.mySolo.set_motor_direction(directions[direction_str])
-        if self.verbose : self.display_direction()
+        if self.verbose : 
+            try :
+                self.display_direction()
+            except Exception:
+                pass
 
     def set_torque(self, torque_value):
         try:

@@ -19,12 +19,10 @@ class DualMotorController:
         self.m2.configure()
 
     def set_forward(self):
-        self._print("Set forward")
         #self.m1.set_direction("CW")
         self.m2.set_direction("CCW")
 
     def set_reverse(self):
-        self._print("Set forward")
         #self.m1.set_direction("CCW")
         self.m2.set_direction("CW")
 
@@ -56,20 +54,9 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     myMotorController = DualMotorController(verbose = args.verbose)
-    
-    # Scenario
 
     myMotorController.configure()
     myMotorController.set_forward()
 
     myMotorController.set_torque(8)
     time.sleep(5)
-
-    #myMotorController.set_torque(0)
-
-    #time.sleep(10)
-
-    #myMotorController.set_reverse()
-
-    #myMotorController.set_torque(8)
-    #time.sleep(5)
