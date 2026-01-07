@@ -231,19 +231,26 @@ class OBU:
         print("[OBU]  All required components ready.")
 
     def _initialize_components(self):
-         # On attend passivement les *_rdy (ACK envoyés plus haut)
+        # On attend passivement les *_rdy (ACK envoyés plus haut)
         print("[OBU] Initialization phase started.")
         try:
-            if self.motors is None :
+            if self.motors is None:
                 print("[OBU] Trying to connect to SOLO…")
                 self.motors = DualMotorController(verbose=self.verbose)
+
+                print("[OBU] [MOTOR] Configuring SOLO (UART)...")
+                self.motors.configure()
+
                 print("[OBU] [MOTOR] Communication Established successfully!")
 
             self._motor_ready_evt.set()
+
         except Exception as e:
             print(f"[OBU] [MOTOR] Error during motor init: {e}")
+            # fail-safe : on reset l'objet moteurs et on ne set pas ready
             self.motors = None
             self._motor_ready_evt.clear()
+
 
 
     def _enter_start_mode(self):

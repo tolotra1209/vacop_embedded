@@ -1,62 +1,74 @@
-import argparse
 import time
 from .MotorController import MotorController
-
-# Execute : python3 -m back_part.DualMotorController -v
 
 class DualMotorController:
     def __init__(self, verbose=False):
         self.verbose = verbose
-        #self.m1 = MotorController(node=1, stoPin=16, verbose=self.verbose)
-        self.m2 = MotorController(node=2, stoPin=26, verbose=self.verbose)
+
+        self.m1 = None
+        self.m2 = None
+
+        # 2 UART différents (à adapter)
+        try:
+            self.m1 = MotorController(node=1, stoPin=16, uart_port="/dev/ttyAMA0", verbose=verbose)
+        except Exception as e:
+            self._print("ERROR init m1:", e)
+
+        try:
+            self.m2 = MotorController(node=2, stoPin=26, uart_port="/dev/ttyAMA3", verbose=verbose)
+        except Exception as e:
+            self._print("ERROR init m2:", e)
+
+        if self.m1 is None and self.m2 is None:
+            raise RuntimeError("No motor could be initialized (m1 and m2 failed).")
 
     def _print(self, *args, **kwargs):
         if self.verbose:
-            print(*args, **kwargs)
-        
+            print("[DualMotorController]", *args, **kwargs)
+
     def configure(self):
-        #self.m1.configure()
-        self.m2.configure()
+        """Configuration minimale (pas de calibration)."""
+        self._print("configure()")
+        if self.m1: self.m1.configure()
+        if self.m2: self.m2.configure()
 
     def set_forward(self):
-        #self.m1.set_direction("CW")
-        self.m2.set_direction("CCW")
+        if self.m1: self.m1.set_direction("CW")
+        if self.m2: self.m2.set_direction("CCW")
 
     def set_reverse(self):
-        #self.m1.set_direction("CCW")
-        self.m2.set_direction("CW")
+        if self.m1: self.m1.set_direction("CCW")
+        if self.m2: self.m2.set_direction("CW")
 
     def set_torque(self, torque_value):
-        self._print("Set torque : ", torque_value)
-        #self.m1.set_torque(torque_value)
-        self.m2.set_torque(torque_value)
+        self._print("set_torque:", torque_value)
+        if self.m1: self.m1.set_torque(torque_value)
+        if self.m2: self.m2.set_torque(torque_value)
 
     def stop_motor(self):
-        self._print("\t stop motors")
-        #self.m1.stop_motor()
-        self.m2.stop_motor()
-    
-    def __del__(self):
-        try:
-            self._print("Destruct DualMotorController object")
-            #if hasattr(self, 'm1') and self.m1:
-            #    self.m1.stop_motor()
-            if hasattr(self, 'm2') and self.m2:
-                self.m2.stop_motor()
-        except Exception as e:
-            print(f"Error in DualMotorController.__del__: {e}")
+        self._print("stop_motor()")
+        if self.m1:
+            try: self.m1.stop_motor()
+            except Exception as e: self._print("WARN stop m1:", e)
+        if self.m2:
+            try: self.m2.stop_motor()
+            except Exception as e: self._print("WARN stop m2:", e)
 
+    # Optionnel
+    def stop(self):
+        self.stop_motor()
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="DualMotorController system")
-    parser.add_argument('-v', '--verbose', action='store_true', help='Enable verbose output')
-    args = parser.parse_args()
+    ctrl = DualMotorController(verbose=True)
+    ctrl.configure()
 
-    myMotorController = DualMotorController(verbose = args.verbose)
-
-    myMotorController.configure()
-    myMotorController.set_forward()
-
-    myMotorController.set_torque(8)
+    ctrl.set_forward()
+    ctrl.set_torque(8)
     time.sleep(5)
+
+    ctrl.set_reverse()
+    ctrl.set_torque(5)
+    time.sleep(5)
+
+    ctrl.stop_motor()
