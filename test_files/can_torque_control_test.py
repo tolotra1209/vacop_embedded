@@ -2,6 +2,29 @@ import RPi.GPIO as GPIO
 import SoloPy as solo
 import time
 
+
+import SoloPy.SOLOMotorControllersCanopen as smc
+
+def patch_solopy_canopen_return():
+    cls = getattr(smc, "SoloMotorControllersCanopen", None) or getattr(smc, "SOLOMotorControllersCanopen", None)
+    if cls is None:
+        raise RuntimeError("SoloPy: classe Canopen introuvable dans SoloPy.SOLOMotorControllersCanopen")
+
+    orig = cls.canopen_transmit
+
+    def canopen_transmit_compat(self, address, _object, sub_index, information_to_send):
+        ret = self._interface.canopen_transmit(address, _object, sub_index, information_to_send)
+        if isinstance(ret, tuple) and len(ret) >= 2:
+            return ret[0], ret[1]
+        return orig(self, address, _object, sub_index, information_to_send)
+
+    cls.canopen_transmit = canopen_transmit_compat
+
+patch_solopy_canopen_return()
+
+
+
+
 # Motor Torque feedback
 actualMotorTorque = 0
 
