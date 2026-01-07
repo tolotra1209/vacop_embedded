@@ -18,7 +18,7 @@ DEVICE = "OBU"
 
 try:
     # Instancier un objet SOLO
-    mySolo = solo.SoloMotorControllersCanopen(2, solo.CanBusBaudRate.RATE_1000)
+    mySolo = solo.SoloMotorControllersCanopen(1, solo.CanBusBaudRate.RATE_1000)
 
     # Attendre que la communication soit OK
     print("Trying to Connect To SOLO")

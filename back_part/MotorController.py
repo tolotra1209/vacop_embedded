@@ -1,3 +1,7 @@
+from .solo_patch import patch_solopy_mcp2515
+
+patch_solopy_mcp2515()
+
 import SoloPy as solo
 import RPi.GPIO as GPIO
 import argparse

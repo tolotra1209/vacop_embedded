@@ -17,7 +17,6 @@ import threading
 
 MAX_TORQUE = 20.0
 TORQUE_SCALE = MAX_TORQUE / 1023.0
-WAIT_READY_TIMEOUT = 20.0 # Wait delay for devices Steer and Brake to send "Ready" before going to error mode
 STAY_ERROR_MODE_SLEEP = 3.0 # Stay in error mode for 3 sec before going to INITIALIZE MODE
 BTN_AUTO_MODE = 0
 BTN_MANUAL_MODE = 1 
@@ -40,6 +39,7 @@ class OBU:
 
         self._brake_ready_evt = threading.Event()
         self._steer_ready_evt = threading.Event()
+        self._motor_ready_evt = threading.Event()
 
          # --- Etats des boutons (None = inconnu au demarrage) 
         self.btn_auto_manu = None   # 1 => MANUAL, 0 => AUTO
@@ -79,20 +79,32 @@ class OBU:
     # === CAN Message Handlers ===
     
     def _handle_brake_ready(self):
-        if self.mode == "INITIALIZE":
-            print("[OBU] brake_rdy received")
-            self.readyComponents.add("brake_rdy")
-            # ACK au module BRAKE (le front qui a envoyé brake_rdy)
-            self.canSystem.can_send("BRAKE", "ready_ack", 0)
-            self._brake_ready_evt.set()
+        print("[OBU] brake_rdy received")
+        self.readyComponents.add("brake_rdy")
+        # ACK au module BRAKE (le front qui a envoyé brake_rdy)
+        self.canSystem.can_send("BRAKE", "ready_ack", 0)
+        self._brake_ready_evt.set()
+
+        # Si BRAKE redémarre pendant que nous sommes déjà en RUN, relancer la séquence minimale.
+        if self.mode != "INITIALIZE":
+            self.canSystem.can_send("BRAKE", "start", 0)
 
     def _handle_steer_ready(self):
-        if self.mode == "INITIALIZE":
-            print("[OBU] steer_rdy received")
-            self.readyComponents.add("steer_rdy")
-            # ACK au module STEER (le front de la direction)
-            self.canSystem.can_send("STEER", "ready_ack", 0)
-            self._steer_ready_evt.set()
+        print("[OBU] steer_rdy received")
+        self.readyComponents.add("steer_rdy")
+        # ACK au module STEER (le front de la direction)
+        self.canSystem.can_send("STEER", "ready_ack", 0)
+        self._steer_ready_evt.set()
+
+        # Si STEER redémarre pendant MANUAL/AUTO, renvoyer les ordres essentiels.
+        if self.mode != "INITIALIZE":
+            self.canSystem.can_send("STEER", "start", 0)
+
+            # Réappliquer l'état steer_enable attendu par le front.
+            if self.mode == "AUTO":
+                self.steer.enable(True)
+            else:
+                self.steer.enable(False)
 
     def _handle_accel_pedal(self, data):
         if self.mode != "MANUAL":
@@ -136,7 +148,7 @@ class OBU:
             self.btn_auto_manu = int(data)
         except Exception:
             print(f"[OBU] WARN: invalid auto/manu button value: {data}")
-            returnc
+            return
 
         if self.mode != "INITIALIZE" :
             newMode = "MANUAL" if int(data) == 1 else "AUTO"
@@ -157,12 +169,10 @@ class OBU:
                 print("[OBU] Entering INITIALIZE mode")
                 self._brake_ready_evt.clear()
                 self._steer_ready_evt.clear()
+                self._motor_ready_evt.clear()
                 self._initialize_components()
-                if self._wait_for_ready(WAIT_READY_TIMEOUT):
-                    self._change_mode("START")
-                else:
-                    print("[OBU] Initialization failed, entering ERROR mode")
-                    self._change_mode("ERROR")
+                self._wait_for_ready()
+                self._change_mode("START")
 
             case "START":
                 print("[OBU] Entering START mode")
@@ -201,24 +211,24 @@ class OBU:
     
     # === Mode Handlers ===
 
-    def _wait_for_ready(self, timeout):
-        print("[OBU] Waiting for BRAKE and STEER to be ready…")
-        t0 = time.time()
+    def _wait_for_ready(self):
+        print("[OBU] Waiting for BRAKE, STEER and MOTOR to be ready…")
 
-        # Attendre BRAKE obligatoirement
-        if not self._brake_ready_evt.wait(timeout=max(0, timeout - (time.time() - t0))):
-            print("[OBU]  Timeout waiting for BRAKE ready")
-            return False
+        events = {
+            "BRAKE": self._brake_ready_evt,
+            "STEER": self._steer_ready_evt,
+            "MOTOR": self._motor_ready_evt,
+        }
+        pending = set(events.keys())
 
-        # STEER optionnel (pour l'instant TODO: à enlever):
-        if not self._steer_ready_evt.wait(timeout=max(0, timeout - (time.time() - t0))):
-            print("[OBU]  WARN: STEER not ready, continuing in degraded mode")
-            # on continue quand même
-        else:
-            print("[OBU]  STEER ready")
+        while pending:
+            for name in list(pending):
+                evt = events[name]
+                if evt.wait(timeout=0.1):
+                    print(f"[OBU]  {name} ready")
+                    pending.remove(name)
 
-        print("[OBU]  All required components ready (degraded ok).")
-        return True
+        print("[OBU]  All required components ready.")
 
     def _initialize_components(self):
          # On attend passivement les *_rdy (ACK envoyés plus haut)
@@ -229,14 +239,15 @@ class OBU:
                 self.motors = DualMotorController(verbose=self.verbose)
                 print("[OBU] [MOTOR] Communication Established successfully!")
 
+            self._motor_ready_evt.set()
         except Exception as e:
             print(f"[OBU] [MOTOR] Error during motor init: {e}")
             self.motors = None
+            self._motor_ready_evt.clear()
 
-        print("[OBU]Waiting for brake_rdy & steer_rdy…")
 
     def _enter_start_mode(self):
-        # start BRAKE (toujours si brake_rdy reçu)
+        # start BRAKE si brake_rdy reçu
         self.canSystem.can_send("BRAKE", "start", 0)
         time.sleep(0.2)
         # start STEER seulement si reçu
@@ -245,13 +256,14 @@ class OBU:
 
     def _enter_manual_mode(self):
         print("MANUAL mode activated.")
-        self._change_state("FORWARD")
+        self._apply_direction_from_button()
         self.steer.enable(False)
         if self.motors :
        	    self.motors.set_torque(0.0)
 
     def _enter_auto_mode(self):
         print("AUTO mode activated.")
+        self._apply_direction_from_button()
         self.steer.enable(True)
         if self.motors :
             self.motors.set_torque(0.0)
@@ -279,6 +291,14 @@ class OBU:
             self.motors.set_reverse()
 
     # === Others ===
+    def _apply_direction_from_button(self):
+        """Align internal state with the last known reverse button value."""
+        desired_state = "FORWARD"
+        if self.btn_reverse is not None:
+            desired_state = "FORWARD" if self.btn_reverse == 1 else "REVERSE"
+        if self.state != desired_state:
+            self._change_state(desired_state)
+
     def stop_all(self):
         """Stoppe tous les actionneurs (moteurs, steer...) proprement."""
         if self.motors:
