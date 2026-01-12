@@ -1,3 +1,4 @@
 SoloPy
 python-can
-
+dotenv
+paho-mqtt

@@ -25,7 +25,7 @@ class MotorController:
         self.node = node
         self.stoPin = stoPin
         self.uart_port = uart_port
-        self.uart_baud = uart_baud or solo.UartBaudRate.RATE_937500
+        self.uart_baud = uart_baud or solo.UartBaudRate.RATE_115200
         self.verbose = verbose
 
         self.mySolo = None
