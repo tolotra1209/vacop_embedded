@@ -35,7 +35,7 @@ GPIO.output(STO2_PIN, GPIO.HIGH)
 
 UART_PORT = "/dev/ttyAMA0"
 NODE_ID = 1
-UART_BAUD = solo.UartBaudRate.RATE_937500
+UART_BAUD = solo.UartBaudRate.RATE_115200
 
 TIMEOUT_S = 30
 
@@ -90,7 +90,7 @@ try:
 
         # set the Direction on C.C.W.
         mySolo.set_motor_direction(solo.Direction.COUNTERCLOCKWISE)
-        mySolo.set_torque_reference_iq(5)
+        mySolo.set_torque_reference_iq(8)
         time.sleep(1)
 
         actualMotorTorque, error = mySolo.get_quadrature_current_iq_feedback()

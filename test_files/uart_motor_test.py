@@ -9,7 +9,7 @@ import time
 
 # instanciate a SOLO object:
 #mySolo = solo.SoloMotorControllerUart("/dev/ttyAMA3", 2, solo.UartBaudRate.RATE_937500)
-mySolo = solo.SoloMotorControllerUart("/dev/ttyAMA0", 1, solo.UartBaudRate.RATE_937500)
+mySolo = solo.SoloMotorControllerUart("/dev/ttyAMA0", 1, solo.UartBaudRate.RATE_115200)
 
 # Desired Switching or PWM Frequency at Output
 pwmFrequency = 20
