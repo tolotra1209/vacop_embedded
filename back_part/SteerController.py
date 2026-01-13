@@ -65,6 +65,5 @@ class SteerController:
     # --- utils ---
     def _log(self, *a):
         if self.verbose:
-            pass
-            #print("[STEER]", *a)
+            print("[STEER]", *a)
 
