@@ -454,7 +454,6 @@ if __name__ == "__main__":
     obu = OBU(verbose=args.verbose)
 
     try:
-        # obu.apply_steer()
         time.sleep(0.01)
         
     except KeyboardInterrupt:
