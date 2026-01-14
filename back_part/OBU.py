@@ -189,17 +189,27 @@ class OBU:
             print(f"[DEBUG] newState = {newState}")
             self._change_state(newState)
 
-    def _handle_bouton_auto_manu(self, data):
-        try:
-            val = int(data)
-            print(f"[OBU] bouton_auto_manu = {val}")
-            self.btn_auto_manu = int(data)
-        except Exception:
-            print(f"[OBU] WARN: invalid auto/manu button value: {data}")
-            return
-        if self.mode != "INITIALIZE":
-            newMode = "MANUAL" if int(data) == 1 else "AUTO"
-            self._change_mode(newMode)
+def _handle_bouton_auto_manu(self, data):
+    try:
+        val = int(data)
+    except (TypeError, ValueError):
+        print(f"[OBU] WARN: invalid auto/manu button value: {data}")
+        return
+
+    if val not in (BTN_MANUAL_MODE, BTN_AUTO_MODE):
+        print(f"[OBU] WARN: unexpected auto/manu value: {val} (expected {BTN_MANUAL_MODE} or {BTN_AUTO_MODE})")
+        return
+
+    print(f"[OBU] bouton_auto_manu = {val}")
+    self.btn_auto_manu = val
+
+    # Pendant l'initialisation on mémorise juste l'état, on ne bascule pas de mode
+    if self.mode == "INITIALIZE":
+        return
+
+    newMode = "MANUAL" if val == BTN_MANUAL_MODE else "AUTO"
+    if self.mode != newMode:
+        self._change_mode(newMode)
 
     def _handle_bouton_park(self):
         print("PARK button pressed: behavior not implemented.")
@@ -304,6 +314,7 @@ class OBU:
         self.steer.enable(True)
         if self.motors:
             self.motors.set_torque(0.0)
+        time.sleep(0.5)
         self.apply_trajectory()
 
     # === State Management ===
@@ -390,9 +401,9 @@ class OBU:
     def apply_release_brake(self):
         self.canSystem.can_send("BRAKE", "brake_pos_set", 288)
 
-    def apply_forward_propulsion(self):
-        time.sleep(1)        
+    def apply_forward_propulsion(self):  
         self.motors.set_forward()
+        time.sleep(0.2)      
         self.motors.set_torque(8.0)
         time.sleep(6)
         self.motors.set_torque(0.0)
@@ -439,8 +450,8 @@ class OBU:
             self.canSystem.can_send("STEER", "stop", 0)
             self.stop_all()
             self.canSystem.stop()
-            self.mqtt_client.loop_stop()
-            self.mqtt_client.disconnect()
+            #self.mqtt_client.loop_stop()
+            #self.mqtt_client.disconnect()
         except Exception as e:
             print(f"Error during shutdown: {e}")
             print(f"[ACCEL] Erreur: {e} - data: {data}")
