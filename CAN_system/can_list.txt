@@ -9,6 +9,7 @@ OrderID:
 {
 stop = 01
 start = 02
+restart = 03
 
 brake_enable = 10
 steer_enable = 11
@@ -16,6 +17,7 @@ steer_enable = 11
 brake_rdy = 20
 steer_rdy = 21
 ready_ack = 22
+
 
 prop_override = 30
 driving_mode = 31

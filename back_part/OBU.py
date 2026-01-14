@@ -28,7 +28,7 @@ load_dotenv()
 # MQTT_TOPIC = os.getenv("MQTT_COMMAND_BASE")
 
 # Constants
-MAX_TORQUE = 20.0
+MAX_TORQUE = 8.0
 TORQUE_SCALE = MAX_TORQUE / 1023.0
 STAY_ERROR_MODE_SLEEP = 3.0
 BTN_AUTO_MODE = 0
@@ -228,6 +228,10 @@ class OBU:
                     self._change_mode("AUTO")
                 else:
                     self._change_mode("MANUAL")
+            case "RESTART":
+                print("[OBU] Entering RESTART mode")
+                self._enter_restart_mode()
+                self._change_mode("INITIALIZE")
             case "MANUAL":
                 print("[OBU] Entering MANUAL mode")
                 self._enter_manual_mode()
@@ -236,8 +240,9 @@ class OBU:
                 self._enter_auto_mode()
             case "ERROR":
                 print("[OBU] Entering ERROR mode")
+                # code envoyer message restart aux deux autres rasp
                 time.sleep(STAY_ERROR_MODE_SLEEP)
-                self._change_mode("INITIALIZE")
+                self._change_mode("RESTART")
             case "OFF":
                 self.shutdown()
             case _:
@@ -282,6 +287,11 @@ class OBU:
         if "steer_rdy" in self.readyComponents:
             self.canSystem.can_send("STEER", "start", 0)
 
+    def _enter_restart_mode(self):
+        self.canSystem.can_send("BRAKE", "restart", 0)
+        self.canSystem.can_send("STEER", "restart", 0)
+        time.sleep(0.2)
+
     def _enter_manual_mode(self):
         print("MANUAL mode activated.")
         self._apply_direction_from_button()
@@ -294,7 +304,7 @@ class OBU:
         self.steer.enable(True)
         if self.motors:
             self.motors.set_torque(0.0)
-        self.apply_gamepad_command(self.last_throttle, self.last_steering)
+        self.apply_trajectory()
 
     # === State Management ===
     def _change_state(self, newState):
@@ -357,14 +367,55 @@ class OBU:
             self.canSystem.can_send("STEER", "steer_target", steering_target)
             self.last_steering_target = steering_target
 
-    def apply_direction():
-
-        pass
+    def apply_steer(self):
+   
+        test_positions = [512, 0, 512, 1023]
+        counter = 0
+        print("[OBU] Démarrage de la séquence de test de direction...")
+        
+        while self.running:
+            try:
+                position = test_positions[counter % len(test_positions)]
+                self.canSystem.can_send("STEER", "steer_pos_set", position)
+                print(f"[OBU] Test direction - Position envoyée: {position}")
+                counter += 1
+                time.sleep(2)                
+            except Exception as e:
+                print(f"[OBU] Erreur lors du test de direction: {e}")
+                break
     
-    def apply_brake(self):
+    def apply_extend_brake(self):
         self.canSystem.can_send("BRAKE", "brake_pos_set", 670)
-        time.sleep(2)
+        
+    def apply_release_brake(self):
         self.canSystem.can_send("BRAKE", "brake_pos_set", 288)
+
+    def apply_forward_propulsion(self):
+        time.sleep(1)        
+        self.motors.set_forward()
+        self.motors.set_torque(8.0)
+        time.sleep(6)
+        self.motors.set_torque(0.0)
+
+    def apply_reverse_propulsion(self):
+        time.sleep(1)
+        self.motors.set_reverse()
+        self.motors.set_torque(8.0)
+        time.sleep(6)
+        self.motors.set_torque(0.0)
+    
+    def apply_trajectory(self):
+        self.apply_forward_propulsion()
+        self.apply_extend_brake()
+        time.sleep(5)
+        self.apply_release_brake()
+        time.sleep(0.01)
+        self.apply_reverse_propulsion()
+        self.apply_extend_brake()
+        time.sleep(5)
+        self.apply_release_brake()
+        time.sleep(0.01)
+        self.motors.set_forward()
 
     def stop_all(self):
         if self.motors:
@@ -376,7 +427,7 @@ class OBU:
         try:
             self.steer.enable(False)
         except Exception:
-            pass
+            pass    
     
     def shutdown(self):
         if not self.running:
@@ -392,6 +443,7 @@ class OBU:
             self.mqtt_client.disconnect()
         except Exception as e:
             print(f"Error during shutdown: {e}")
+            print(f"[ACCEL] Erreur: {e} - data: {data}")
         print("System shutdown complete.")
 
 if __name__ == "__main__":
@@ -402,13 +454,9 @@ if __name__ == "__main__":
     obu = OBU(verbose=args.verbose)
 
     try:
-        test_positions = [512, 0, 512, 1023]
-        counter = 0
-        while obu.running:
-            position = test_positions[counter % len(test_positions)]
-            obu.canSystem.can_send("STEER", "steer_pos_set", position)
-            counter += 1
-            time.sleep(2)
+        # obu.apply_steer()
+        time.sleep(0.01)
+        
     except KeyboardInterrupt:
         print("KeyboardInterrupt received.")
         obu.shutdown()

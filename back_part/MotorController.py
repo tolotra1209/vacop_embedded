@@ -50,6 +50,7 @@ class MotorController:
         self._print("[MOTOR] Init STO with pin", self.stoPin)
         GPIO.setup(self.stoPin, GPIO.OUT)
         GPIO.output(self.stoPin, GPIO.HIGH)  # enable STO
+        time.sleep(0.05)
 
     def _initialize_motor(self):
         self.mySolo = solo.SoloMotorControllerUart(self.uart_port, self.node, self.uart_baud)
@@ -75,8 +76,8 @@ class MotorController:
         self._print("[MOTOR] Communication established!")
 
     def _ensure_connected(self):
-        if not self.connected:
-            raise RuntimeError(f"[{self.node}] ERROR: SOLO not connected")
+        if self.mySolo is None:
+            raise RuntimeError(f"[{self.node}] ERROR: SOLO object not initialized")
 
     # ---------- CONFIG ----------
     def configure(self):

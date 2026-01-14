@@ -86,5 +86,3 @@ class BrakeController:
     def read_motor_position(channel = 1):
         position = mpc.read_adc(channel)
         return position
-
-    def 

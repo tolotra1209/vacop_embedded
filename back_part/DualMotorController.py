@@ -33,15 +33,19 @@ class DualMotorController:
         if self.m2: self.m2.configure()
 
     def set_forward(self):
+        self.m1._ensure_connected() and self.m2._ensure_connected()
         if self.m1: self.m1.set_direction("CW")
         if self.m2: self.m2.set_direction("CCW")
 
     def set_reverse(self):
+        self.m1._ensure_connected() and self.m2._ensure_connected()
         if self.m1: self.m1.set_direction("CCW")
         if self.m2: self.m2.set_direction("CW")
 
     def set_torque(self, torque_value):
+        self.m1._ensure_connected() and self.m2._ensure_connected()
         self._print("set_torque:", torque_value)
+        time.sleep(1)
         if self.m1: self.m1.set_torque(torque_value)
         if self.m2: self.m2.set_torque(torque_value)
 
