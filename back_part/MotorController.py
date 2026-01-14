@@ -76,8 +76,8 @@ class MotorController:
         self._print("[MOTOR] Communication established!")
 
     def _ensure_connected(self):
-        if self.mySolo is None:
-            raise RuntimeError(f"[{self.node}] ERROR: SOLO object not initialized")
+        if self.mySolo is None or not self.connected:
+            raise RuntimeError(f"[{self.node}] ERROR: motor not connected to SOLO")
 
     # ---------- CONFIG ----------
     def configure(self):
