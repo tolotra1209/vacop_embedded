@@ -2,8 +2,8 @@ import time
 import argparse
 
 from CAN_system.CANSystem_p import CANSystem
-from back_part.DualMotorController import DualMotorController
-from back_part.SteerController import SteerController
+from .DualMotorController import DualMotorController
+from .SteerController import SteerController
 
 
 def test_motors_forward(motors):

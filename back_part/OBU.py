@@ -21,6 +21,10 @@ STAY_ERROR_MODE_SLEEP = 3.0 # Stay in error mode for 3 sec before going to INITI
 BTN_AUTO_MODE = 0
 BTN_MANUAL_MODE = 1 
 
+# Constants for AUTO mode
+MAX_AUTO_SPEED = 30.0  # km/h maximum
+TORQUE_AT_MAX_SPEED = 15.0  # Nm at max speed
+
 class OBU:
     def __init__(self, verbose=False):
         self.verbose = verbose
@@ -72,7 +76,7 @@ class OBU:
                 self.steer.on_feedback(data)
             case "steer_target":
                 if self.mode == "AUTO":
-                    self.steer.set_target(data)
+                    self.steer.set_target(data)                
             case _:
                 self._handle_event(messageType, data)
     
@@ -157,6 +161,7 @@ class OBU:
     def _handle_bouton_park(self):
         print("PARK button pressed: behavior not implemented.")
 
+
     def _handle_event(self, messageType, data):
         print(f"[Unhandled] {messageType}, data: {data}, state: {self.state}")
 
@@ -231,7 +236,6 @@ class OBU:
         print("[OBU]  All required components ready.")
 
     def _initialize_components(self):
-        # On attend passivement les *_rdy (ACK envoyés plus haut)
         print("[OBU] Initialization phase started.")
         try:
             if self.motors is None:
@@ -247,11 +251,8 @@ class OBU:
 
         except Exception as e:
             print(f"[OBU] [MOTOR] Error during motor init: {e}")
-            # fail-safe : on reset l'objet moteurs et on ne set pas ready
             self.motors = None
             self._motor_ready_evt.clear()
-
-
 
     def _enter_start_mode(self):
         # start BRAKE si brake_rdy reçu
@@ -264,16 +265,18 @@ class OBU:
     def _enter_manual_mode(self):
         print("MANUAL mode activated.")
         self._apply_direction_from_button()
-        self.steer.enable(False)
+        self.steer.enable(False)  
         if self.motors :
-       	    self.motors.set_torque(0.0)
+            self.motors.set_torque(0.0)
 
     def _enter_auto_mode(self):
         print("AUTO mode activated.")
-        self._apply_direction_from_button()
-        self.steer.enable(True)
+        self.steer.enable(True)  
         if self.motors :
             self.motors.set_torque(0.0)
+
+        #Test direction et propulsion
+        self.auto_test()  
 
     # === State Management ===
 
@@ -305,6 +308,16 @@ class OBU:
             desired_state = "FORWARD" if self.btn_reverse == 1 else "REVERSE"
         if self.state != desired_state:
             self._change_state(desired_state)
+
+    # === TEST DIRECTION ET PROPULSION
+    def auto_test(self):
+        self.motors.set_torque(2.0)
+        time.sleep(5)
+        self.motors.set_torque(0.0)
+        self.steer.set_target(0)
+        time.sleep(5)
+        self.steer.set_target(511)
+
 
     def stop_all(self):
         """Stoppe tous les actionneurs (moteurs, steer...) proprement."""
@@ -346,9 +359,9 @@ if __name__ == "__main__":
     try:
         TICK = 0.05
         while obu.running:
-            #Steer control in "AUTO" mode
+            # Steer control in "AUTO" mode
             if obu.mode == "AUTO":
-                obu.steer.update()
+                obu.steer.update()  # Met à jour le contrôleur PID de direction
 
             time.sleep(TICK)
     except KeyboardInterrupt:
