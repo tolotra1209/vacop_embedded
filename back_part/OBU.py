@@ -21,11 +21,11 @@ from .SteerController import SteerController
 load_dotenv()
 
 # MQTT settings from .env
-MQTT_BROKER_URL = os.getenv("MQTT_BROKER_URL")
-MQTT_USERNAME = os.getenv("MQTT_USERNAME")
-MQTT_PASSWORD = os.getenv("MQTT_PASSWORD")
-MQTT_CLIENT_ID = os.getenv("MQTT_CLIENT_ID")
-MQTT_TOPIC = os.getenv("MQTT_COMMAND_BASE")
+# MQTT_BROKER_URL = os.getenv("MQTT_BROKER_URL")
+# MQTT_USERNAME = os.getenv("MQTT_USERNAME")
+# MQTT_PASSWORD = os.getenv("MQTT_PASSWORD")
+# MQTT_CLIENT_ID = os.getenv("MQTT_CLIENT_ID")
+# MQTT_TOPIC = os.getenv("MQTT_COMMAND_BASE")
 
 # Constants
 MAX_TORQUE = 20.0
@@ -64,14 +64,13 @@ class OBU:
         self.current_direction = None  # "FORWARD" or "REVERSE"
 
         # --- MQTT Client ---
-        self.mqtt_client = mqtt.Client(callback_api_version=mqtt.CallbackAPIVersion.VERSION1, client_id=MQTT_CLIENT_ID)
-        self.mqtt_client.username_pw_set(MQTT_USERNAME, MQTT_PASSWORD)
-        self.mqtt_client.on_connect = self.on_mqtt_connect
-        self.mqtt_client.on_disconnect = self.on_mqtt_disconnect
-        self.mqtt_client.on_message = self.on_mqtt_message
-        self.mqtt_client.connect(MQTT_BROKER_URL, 1883, 60)
-        self.mqtt_client.loop_start()
-
+        # self.mqtt_client = mqtt.Client(callback_api_version=mqtt.CallbackAPIVersion.VERSION1, client_id=MQTT_CLIENT_ID)
+        # self.mqtt_client.username_pw_set(MQTT_USERNAME, MQTT_PASSWORD)
+        # self.mqtt_client.on_connect = self.on_mqtt_connect
+        # self.mqtt_client.on_disconnect = self.on_mqtt_disconnect
+        # self.mqtt_client.on_message = self.on_mqtt_message
+        # self.mqtt_client.connect(MQTT_BROKER_URL, 1883, 60)
+        # self.mqtt_client.loop_start()
 
         # --- Etats des boutons (None = inconnu au demarrage)
         self.btn_auto_manu = None   # 1 => MANUAL, 0 => AUTO
@@ -81,33 +80,33 @@ class OBU:
         self._change_mode("INITIALIZE")
 
     # === MQTT Callbacks ===
-    def on_mqtt_connect(self, client, userdata, flags, rc):
-        print(f"[MQTT] Connected with result code {rc}")
-        client.subscribe(MQTT_TOPIC)
+    # def on_mqtt_connect(self, client, userdata, flags, rc):
+    #     print(f"[MQTT] Connected with result code {rc}")
+    #     client.subscribe(MQTT_TOPIC)
 
-    def on_mqtt_disconnect(self, client, userdata, reason_code, properties):
-        try:
-            rc_val = int(reason_code)
-        except Exception:
-            rc_val = reason_code
-        print(f"[MQTT] Disconnected (reason_code={rc_val})")
+    # def on_mqtt_disconnect(self, client, userdata, reason_code, properties):
+    #     try:
+    #         rc_val = int(reason_code)
+    #     except Exception:
+    #         rc_val = reason_code
+    #     print(f"[MQTT] Disconnected (reason_code={rc_val})")
 
-        self.motors.set_torque(0.0)
-        self.mqtt_client.on_mqtt_connect()
+    #     self.motors.set_torque(0.0)
+    #     self.mqtt_client.on_mqtt_connect()
 
-    def on_mqtt_message(self, client, userdata, msg):
-        try:
-            data = json.loads(msg.payload.decode("utf-8"))
-            throttle = float(data["vector"]["throttle"])
-            steering = float(data["vector"]["steering"])
-            ts = int(data["ts"])
+    # def on_mqtt_message(self, client, userdata, msg):
+    #     try:
+    #         data = json.loads(msg.payload.decode("utf-8"))
+    #         throttle = float(data["vector"]["throttle"])
+    #         steering = float(data["vector"]["steering"])
+    #         ts = int(data["ts"])
             
-            self.last_throttle = throttle
-            self.last_steering = steering
-            self.last_ts = ts
-            self.apply_gamepad_command(ts, throttle, steering)
-        except Exception as e:
-            print(f"[MQTT] Command handling failed: {e}")
+    #         self.last_throttle = throttle
+    #         self.last_steering = steering
+    #         self.last_ts = ts
+    #         self.apply_gamepad_command(throttle, steering)
+    #     except Exception as e:
+    #         print(f"[MQTT] Command handling failed: {e}")
 
 
     # === CAN message Reception ===
@@ -323,10 +322,10 @@ class OBU:
         if self.state != desired_state:
             self._change_state(desired_state)
 
-    def apply_gamepad_command(self, ts: int, throttle: float, steering: float):
+    def apply_gamepad_command(self, throttle: float, steering: float):
         if not self.motors:
             return
-
+            
         # if ts :
         #     self.set_torque(0.0)
             
@@ -350,7 +349,22 @@ class OBU:
 
         steering_target = int((steering + 1.0) / 2.0 * 1023)
         steering_target = max(0, min(1023, steering_target))
-        self.steer.set_target(steering_target)
+        
+        if not hasattr(self, 'last_steering_target'):
+            self.last_steering_target = steering_target
+        
+        if abs(steering_target - self.last_steering_target) > 10:
+            self.canSystem.can_send("STEER", "steer_target", steering_target)
+            self.last_steering_target = steering_target
+
+    def apply_direction():
+
+        pass
+    
+    def apply_brake(self):
+        self.canSystem.can_send("BRAKE", "brake_pos_set", 670)
+        time.sleep(2)
+        self.canSystem.can_send("BRAKE", "brake_pos_set", 288)
 
     def stop_all(self):
         if self.motors:
@@ -363,7 +377,7 @@ class OBU:
             self.steer.enable(False)
         except Exception:
             pass
-
+    
     def shutdown(self):
         if not self.running:
             return
@@ -388,11 +402,13 @@ if __name__ == "__main__":
     obu = OBU(verbose=args.verbose)
 
     try:
-        TICK = 0.01 # 0.05 --> 0.01
+        test_positions = [512, 0, 512, 1023]
+        counter = 0
         while obu.running:
-            if obu.mode == "AUTO":
-                obu.steer.update()
-            time.sleep(TICK)
+            position = test_positions[counter % len(test_positions)]
+            obu.canSystem.can_send("STEER", "steer_pos_set", position)
+            counter += 1
+            time.sleep(2)
     except KeyboardInterrupt:
         print("KeyboardInterrupt received.")
         obu.shutdown()
